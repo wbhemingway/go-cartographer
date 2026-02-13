@@ -46,13 +46,13 @@ func (am *AssetManager) Get(name string) (image.Image, error) {
 	fullPath := filepath.Join(am.basePath, name+".png")
 	file, err := os.Open(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open asset %s: %w", name, err)
+		return am.cache["__missing__"], fmt.Errorf("failed to open asset %s: %w", name, err)
 	}
 
 	defer file.Close()
 	loadedImg, _, err := image.Decode(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode asset %s: %w", name, err)
+		return am.cache["__missing__"], fmt.Errorf("failed to decode asset %s: %w", name, err)
 	}
 
 	am.cache[name] = loadedImg
@@ -61,7 +61,7 @@ func (am *AssetManager) Get(name string) (image.Image, error) {
 
 func generatePlaceholder(size int) image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	magenta := color.RGBA{255, 0, 255, 255} 
+	magenta := color.RGBA{255, 0, 255, 255}
 	for x := range size {
 		for y := range size {
 			img.Set(x, y, magenta)

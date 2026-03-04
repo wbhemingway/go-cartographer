@@ -68,6 +68,7 @@ func (e *Engine) Render(w World) (image.Image, error) {
 		wg.Wait()
 		close(results)
 	}()
+
 	for res := range results {
 		posX := float64(res.x * e.cfg.TileSize)
 		posY := float64(res.y * e.cfg.TileSize)

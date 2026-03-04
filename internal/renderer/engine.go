@@ -63,6 +63,7 @@ func (e *Engine) Render(w World) (image.Image, error) {
 	for _, t := range w.Tiles {
 		jobs <- t
 	}
+	close(jobs)
 
 	go func() {
 		wg.Wait()

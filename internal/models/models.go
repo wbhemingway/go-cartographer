@@ -1,4 +1,4 @@
-package renderer
+package models
 
 type Tile struct {
 	X int `json:"x"`

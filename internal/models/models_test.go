@@ -1,4 +1,4 @@
-package renderer
+package models
 
 import (
 	"encoding/json"

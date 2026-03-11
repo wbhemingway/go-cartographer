@@ -8,6 +8,7 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/wbhemingway/go-cartographer/internal/renderer"
+	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read map file: %v", err)
 	}
-	var world renderer.World
+	var world models.World
 	err = json.Unmarshal(world_file, &world)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)

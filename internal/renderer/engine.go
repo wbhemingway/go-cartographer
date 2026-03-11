@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/fogleman/gg"
+	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
 type Config struct {
@@ -40,13 +41,13 @@ func New(cfg Config) *Engine {
 	}
 }
 
-func (e *Engine) Render(ctx context.Context, w World) (image.Image, error) {
+func (e *Engine) Render(ctx context.Context, w models.World) (image.Image, error) {
 	dcWidth := w.Width * e.cfg.TileSize
 	dcHeight := w.Height * e.cfg.TileSize
 	dc := gg.NewContext(dcWidth, dcHeight)
 
 	numWorkers := runtime.NumCPU() * 4
-	jobs := make(chan Tile, len(w.Tiles))
+	jobs := make(chan models.Tile, len(w.Tiles))
 	results := make(chan result, len(w.Tiles))
 	var wg sync.WaitGroup
 
@@ -86,7 +87,7 @@ func (e *Engine) Render(ctx context.Context, w World) (image.Image, error) {
 	}
 }
 
-func (e *Engine) renderTile(t Tile) image.Image {
+func (e *Engine) renderTile(t models.Tile) image.Image {
 	tdc := gg.NewContext(e.cfg.TileSize, e.cfg.TileSize)
 
 	img, err := e.assets.Get("terrain/" + t.Terrain)

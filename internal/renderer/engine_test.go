@@ -3,6 +3,8 @@ package renderer
 import (
 	"context"
 	"testing"
+	
+	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
 func TestEngine_Render(t *testing.T) {
@@ -11,16 +13,16 @@ func TestEngine_Render(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		world          World
+		world          models.World
 		expectErr      bool
 		expectedWidth  int
 		expectedHeight int
 	}{
 		{
 			name: "Standard 2x2 World",
-			world: World{
+			world: models.World{
 				Width: 2, Height: 2,
-				Tiles: []Tile{
+				Tiles: []models.Tile{
 					{X: 0, Y: 0, Terrain: "grass"},
 					{X: 1, Y: 1, Terrain: "missing_water"},
 				},
@@ -31,9 +33,9 @@ func TestEngine_Render(t *testing.T) {
 		},
 		{
 			name: "Empty World (0x0)",
-			world: World{
+			world: models.World{
 				Width: 0, Height: 0,
-				Tiles: []Tile{},
+				Tiles: []models.Tile{},
 			},
 			expectErr:      false,
 			expectedWidth:  0,
@@ -41,9 +43,9 @@ func TestEngine_Render(t *testing.T) {
 		},
 		{
 			name: "Heavily Layered Single Tile",
-			world: World{
+			world: models.World{
 				Width: 1, Height: 1,
-				Tiles: []Tile{
+				Tiles: []models.Tile{
 					{X: 0, Y: 0, Terrain: "dirt", Structure: "wall", Creature: "goblin"},
 				},
 			},
@@ -76,7 +78,7 @@ func TestEngine_Render_ContextCancellation(t *testing.T) {
 	cfg := DefaultConfig()
 	engine := New(cfg)
 
-	world := World{Width: 100, Height: 100, Tiles: make([]Tile, 10000)}
+	world := models.World{Width: 100, Height: 100, Tiles: make([]models.Tile, 10000)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

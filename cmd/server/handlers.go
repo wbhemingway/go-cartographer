@@ -9,7 +9,7 @@ import (
 	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
-func (s *Server) HandleRender(w http.ResponseWriter, r *http.Request) {
+func (apiCfg *ApiConfig) HandleRender(w http.ResponseWriter, r *http.Request) {
 	var world models.World
 	err := json.NewDecoder(r.Body).Decode(&world)
 	if err != nil {
@@ -18,7 +18,7 @@ func (s *Server) HandleRender(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	img, err := s.engine.Render(r.Context(), world)
+	img, err := apiCfg.engine.Render(r.Context(), world)
 	if err != nil {
 		http.Error(w, "Failed to render map", http.StatusInternalServerError)
 		log.Printf("Render error: %v", err)

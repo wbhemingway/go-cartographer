@@ -16,7 +16,7 @@ import (
 func main() {
 	cfg := renderer.DefaultConfig()
 	engine := renderer.New(cfg)
-	apiServer := NewServer(engine)
+	apiServer := NewApiConfig(engine)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /render", apiServer.HandleRender)
 

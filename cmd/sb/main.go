@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -23,7 +24,7 @@ func main() {
 	}
 
 	log.Println("Rendering map...")
-	img, err := engine.Render(world)
+	img, err := engine.Render(context.Background(), world)
 	if err != nil {
 		log.Fatalf("Render failed: %v", err)
 	}

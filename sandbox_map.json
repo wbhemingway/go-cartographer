@@ -5,16 +5,11 @@
         {
             "x": 0,
             "y": 0,
-            "terrain": "grass",
+            "terrain": "water",
             "structure": "tree"
         },
         {
             "x": 1,
-            "y": 0,
-            "terrain": "grass"
-        },
-        {
-            "x": 2,
             "y": 0,
             "terrain": "grass"
         },
@@ -48,7 +43,8 @@
         {
             "x": 8,
             "y": 0,
-            "terrain": "water"
+            "terrain": "water",
+            "creature": "kobold"
         },
         {
             "x": 9,

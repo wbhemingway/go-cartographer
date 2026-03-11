@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"context"
 	"image"
 	"log"
 	"runtime"
@@ -39,7 +40,7 @@ func New(cfg Config) *Engine {
 	}
 }
 
-func (e *Engine) Render(w World) (image.Image, error) {
+func (e *Engine) Render(ctx context.Context, w World) (image.Image, error) {
 	dcWidth := w.Width * e.cfg.TileSize
 	dcHeight := w.Height * e.cfg.TileSize
 	dc := gg.NewContext(dcWidth, dcHeight)
@@ -70,13 +71,19 @@ func (e *Engine) Render(w World) (image.Image, error) {
 		close(results)
 	}()
 
-	for res := range results {
-		posX := float64(res.x * e.cfg.TileSize)
-		posY := float64(res.y * e.cfg.TileSize)
-		dc.DrawImage(res.tile, int(posX), int(posY))
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case res, ok := <-results:
+			if !ok {
+				return dc.Image(), nil
+			}
+			posX := float64(res.x * e.cfg.TileSize)
+			posY := float64(res.y * e.cfg.TileSize)
+			dc.DrawImage(res.tile, int(posX), int(posY))
+		}
 	}
-
-	return dc.Image(), nil
 }
 
 func (e *Engine) renderTile(t Tile) image.Image {

@@ -18,9 +18,8 @@ func main() {
 	engine := renderer.New(cfg)
 	apiServer := NewApiConfig(engine)
 	mux := http.NewServeMux()
+	
 	mux.HandleFunc("POST /render", apiServer.HandleRender)
-
-	http.HandleFunc("POST /render", apiServer.HandleRender)
 
 	port := ":8080"
 	serve := &http.Server{

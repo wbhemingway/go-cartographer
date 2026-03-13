@@ -1,0 +1,10 @@
+.git
+bin/
+obj/
+*.exe
+test-render.png
+.env
+Makefile
+README.md
+**/*.png
+!assets/**/*.png

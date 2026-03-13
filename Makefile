@@ -18,6 +18,7 @@ deploy: push
 		--region $(CARTOGRAPHER_REGION) \
 		--set-secrets="CARTOGRAPHER_API_KEY=CARTOGRAPHER_API_KEY:latest" \
 		--set-env-vars="CARTOGRAPHER_BUCKET_NAME=$(CARTOGRAPHER_BUCKET_NAME)" \
-		--allow-unauthenticated
+		--allow-unauthenticated \
+		--max-instances=2
 
 all: deploy

@@ -22,7 +22,7 @@ func main() {
 	if apiURL == "" {
 		log.Fatal("Fatal: CARTOGRAPHER_API_URL environment variable is not set")
 	}
-	apiClient := client.New(apiURL, apiKey)
+	apiClient := client.New(apiURL, apiKey, http.DefaultClient)
 
 	world := models.World{
 		Width:  2,

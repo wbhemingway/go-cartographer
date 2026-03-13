@@ -17,11 +17,14 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
-func New(url string, apiKey string) *Client {
+func New(url string, apiKey string, client *http.Client) *Client {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	return &Client{
 		BaseURL:    url,
 		APIKey:     apiKey,
-		HTTPClient: &http.Client{},
+		HTTPClient: client,
 	}
 }
 
@@ -36,7 +39,7 @@ func (c *Client) RequestMap(ctx context.Context, world models.World) (io.ReadClo
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.APIKey != "" {
+	if c.APIKey != "" && c.HTTPClient == http.DefaultClient {
 		req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	}
 

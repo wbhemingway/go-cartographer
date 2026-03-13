@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -18,6 +18,7 @@ func (apiCfg *ApiConfig) HandleRender(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&world)
 	if err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		slog.Info("Invalid JSON payload", "error", err)
 		return
 	}
 	defer r.Body.Close()
@@ -25,13 +26,14 @@ func (apiCfg *ApiConfig) HandleRender(w http.ResponseWriter, r *http.Request) {
 	img, err := apiCfg.engine.Render(r.Context(), world)
 	if err != nil {
 		http.Error(w, "Failed to render map", http.StatusInternalServerError)
-		log.Printf("Render error: %v", err)
+		slog.Error("Render error", "error", err)
 		return
 	}
 
 	mapID, err := uuid.NewV7()
 	if err != nil {
 		http.Error(w, "Failed to generate ID", http.StatusInternalServerError)
+		slog.Error("Failed to generate ID", "error", err)
 		return
 	}
 
@@ -41,16 +43,19 @@ func (apiCfg *ApiConfig) HandleRender(w http.ResponseWriter, r *http.Request) {
 
 	writer := obj.NewWriter(r.Context())
 	writer.ContentType = "image/png"
+	defer writer.Close()
 
 	err = png.Encode(writer, img)
 	if err != nil {
 		http.Error(w, "Failed to write image to storage", http.StatusInternalServerError)
+		slog.Error("Failed to write image to storage", "error", err)
 		return
 	}
 
 	err = writer.Close()
 	if err != nil {
 		http.Error(w, "Failed to finalize image upload", http.StatusInternalServerError)
+		slog.Error("Failed to finalize image upload", "error", err)
 		return
 	}
 
@@ -60,7 +65,7 @@ func (apiCfg *ApiConfig) HandleRender(w http.ResponseWriter, r *http.Request) {
 		Expires: time.Now().Add(15 * time.Minute),
 	})
 	if err != nil {
-		log.Printf("Failed to generate signed URL: %v", err)
+		slog.Error("Failed to generate signed URL", "error", err)
 		http.Error(w, "Failed to generate image link", http.StatusInternalServerError)
 		return
 	}

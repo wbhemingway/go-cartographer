@@ -1,6 +1,6 @@
 # Build Stage
 
-FROM golang:1.25.4-alpine3.21 AS Builder
+FROM golang:1.25.4-alpine3.21 AS builder
 
 WORKDIR /app
 
@@ -18,9 +18,9 @@ FROM alpine:3.21
 
 WORKDIR /
 
-COPY --from=Builder /server /server
+COPY --from=builder /server /server
 
-COPY --from=Builder /app/assets /assets
+COPY --from=builder /app/assets /assets
 
 EXPOSE 8080
 

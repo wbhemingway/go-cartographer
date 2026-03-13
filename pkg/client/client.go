@@ -13,12 +13,14 @@ import (
 
 type Client struct {
 	BaseURL    string
+	APIKey     string
 	HTTPClient *http.Client
 }
 
-func New(url string) *Client {
+func New(url string, apiKey string) *Client {
 	return &Client{
 		BaseURL:    url,
+		APIKey:     apiKey,
 		HTTPClient: &http.Client{},
 	}
 }
@@ -34,6 +36,9 @@ func (c *Client) RequestMap(ctx context.Context, world models.World) (io.ReadClo
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	}
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

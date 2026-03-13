@@ -1,11 +1,12 @@
 package main
 
-import "github.com/wbhemingway/go-cartographer/internal/renderer"
+import (
+	"cloud.google.com/go/storage"
+	"github.com/wbhemingway/go-cartographer/internal/renderer"
+)
 
 type ApiConfig struct {
-	engine *renderer.Engine
-}
-
-func NewApiConfig(engine *renderer.Engine) *ApiConfig {
-	return &ApiConfig{engine: engine}
+	engine        *renderer.Engine
+	storageClient *storage.Client
+	bucketName    string
 }

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -38,22 +40,43 @@ func main() {
 
 	log.Println("Sending map request to server...")
 
-	imageStream, err := apiClient.RequestMap(ctx, world)
+	respBody, err := apiClient.RequestMap(ctx, world)
 	if err != nil {
-		log.Fatalf("Failed to get map from server: %v", err)
+		log.Fatalf("Failed to get response from server: %v", err)
 	}
-	defer imageStream.Close()
+	defer respBody.Close()
 
-	outputFile, err := os.Create("client_test_output.png")
+	data, err := io.ReadAll(respBody)
 	if err != nil {
-		log.Fatalf("Failed to create output file: %v", err)
+		log.Fatalf("Failed to read response body: %v", err)
 	}
-	defer outputFile.Close()
 
-	bytesWritten, err := io.Copy(outputFile, imageStream)
+	var res models.RenderResponse
+	err = json.Unmarshal(data, &res)
+	if err != nil {
+		log.Fatalf("Failed to parse JSON: %v", err)
+	}
+
+	log.Printf("Success! Map ID: %s", res.ID)
+	log.Printf("Signed URL (valid for 15m): %s", res.URL)
+
+	log.Println("Downloading image from Signed URL...")
+	imgResp, err := http.Get(res.URL)
+	if err != nil || imgResp.StatusCode != http.StatusOK {
+		log.Fatalf("Failed to download image from signed URL: %v", err)
+	}
+	defer imgResp.Body.Close()
+
+	outFile, err := os.Create("test-render.png")
+	if err != nil {
+		log.Fatalf("Failed to create local file: %v", err)
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, imgResp.Body)
 	if err != nil {
 		log.Fatalf("Failed to save image: %v", err)
 	}
 
-	log.Printf("Success! Saved map to client_test_output.png (%d bytes)", bytesWritten)
+	log.Println("Verified! Image saved to test-render.png")
 }

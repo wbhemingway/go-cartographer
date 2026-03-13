@@ -1,3 +1,5 @@
 .env
 *.png
+bin/
+*.exe
 !assets/**/*.png

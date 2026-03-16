@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/storage"
 	"github.com/wbhemingway/go-cartographer/internal/renderer"
 )
@@ -19,6 +20,7 @@ func main() {
 	logger := slog.New(handler).With("service", "cartographer-api")
 	slog.SetDefault(logger)
 
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	bucketName := os.Getenv("CARTOGRAPHER_BUCKET_NAME")
 	if bucketName == "" {
 		slog.Error("CARTOGRAPHER_BUCKET_NAME environment variable is not set")
@@ -35,16 +37,25 @@ func main() {
 	}
 	defer storageClient.Close()
 
+	firestoreClient, err := firestore.NewClient(ctx, projectID)
+	if err != nil {
+		slog.Error("Failed to create firestore client", "error", err)
+		os.Exit(1)
+	}
+	defer firestoreClient.Close()
+
 	cfg := renderer.DefaultConfig()
 	engine := renderer.New(cfg)
 	apiCfg := &ApiConfig{
-		engine:        engine,
-		storageClient: storageClient,
-		bucketName:    bucketName,
+		engine:          engine,
+		storageClient:   storageClient,
+		firestoreClient: firestoreClient,
+		bucketName:      bucketName,
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /render", authMiddleware(apiCfg.HandleRender))
+	mux.HandleFunc("POST /render", apiCfg.authMiddleware(apiCfg.handleRender))
+	mux.HandleFunc("GET /render/{mapID}", apiCfg.authMiddleware(apiCfg.handleGetMap))
 
 	port := os.Getenv("PORT")
 	if port == "" {

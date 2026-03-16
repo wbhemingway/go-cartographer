@@ -1,22 +1,41 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
-	"os"
+	"strings"
+
+	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
-func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func (apiCfg *ApiConfig) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		apiKey := os.Getenv("CARTOGRAPHER_API_KEY")
-
-		if apiKey != "" {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader != "Bearer "+apiKey {
-				http.Error(w, "Unauthorized: Invalid or missing API Key", http.StatusUnauthorized)
-				return
-			}
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
 		}
 
-		next(w, r)
+		key := strings.TrimPrefix(authHeader, "Bearer ")
+
+		doc, err := apiCfg.firestoreClient.Collection("api_keys").Doc(key).Get(r.Context())
+		if err != nil {
+			slog.Warn("Invalid API key attempt", "error", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var apiKey models.APIKey
+		err = doc.DataTo(&apiKey)
+		if err != nil || !apiKey.IsActive {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "UserID", apiKey.UserID)
+		ctx = context.WithValue(ctx, "UserRole", apiKey.UserRole)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

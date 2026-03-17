@@ -16,9 +16,9 @@ func getMapMetadata(ctx context.Context, fc *firestore.Client, mapID string) (mo
 		if status.Code(err) == codes.NotFound {
 			return models.MapMetadata{}, models.ErrMapNotFound
 		}
-		
+
 		slog.Error("Could not get map config from mapID", "error", err)
-		return models.MapMetadata{}, models.ErrMapNotFound
+		return models.MapMetadata{}, err
 	}
 
 	var mapdata models.MapMetadata

@@ -12,6 +12,13 @@ const (
 	StatusCompleted MapStatus = "completed"
 )
 
+type UserRoles string
+
+const (
+	RoleAdmin UserRoles = "admin"
+	RoleUser  UserRoles = "user"
+)
+
 var (
 	ErrMapNotFound   = errors.New("map not found")
 	ErrUnauthorized  = errors.New("user does not own this map")
@@ -33,9 +40,9 @@ type World struct {
 }
 
 type MapResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	URL    string `json:"url"`
+	ID     string    `json:"id"`
+	Status MapStatus `json:"status"`
+	URL    string    `json:"url,omitempty"`
 }
 
 type MapMetadata struct {
@@ -43,13 +50,13 @@ type MapMetadata struct {
 	CreatorID        string    `firestore:"creator_id" json:"creator_id"`
 	ConfigObjectName string    `firestore:"config_object_name" json:"config_object_name"`
 	CreatedAt        time.Time `firestore:"created_at" json:"created_at"`
-	Status           string    `firestore:"status" json:"status"`
+	Status           MapStatus `firestore:"status" json:"status"`
 }
 
 type APIKey struct {
 	ID        string    `firestore:"id"`
 	UserID    string    `firestore:"user_id"`
-	UserRole  string    `firestore:"user_role"`
+	UserRole  UserRoles `firestore:"user_role"`
 	IsActive  bool      `firestore:"is_active"`
 	CreatedAt time.Time `firestore:"created_at"`
 }
@@ -57,6 +64,6 @@ type APIKey struct {
 type User struct {
 	ID        string    `firestore:"id"`
 	Email     string    `firestore:"email"`
-	Role      string    `firestore:"role"`
+	Role      UserRoles `firestore:"role"`
 	CreatedAt time.Time `firestore:"created_at"`
 }

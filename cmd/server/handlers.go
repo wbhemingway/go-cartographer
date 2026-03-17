@@ -50,7 +50,7 @@ func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 	err = json.NewEncoder(w).Encode(models.MapResponse{
 		ID:     mapID,
-		Status: string(models.StatusPending),
+		Status: models.StatusPending,
 	})
 	if err != nil {
 		slog.Error("Failed to write JSON response", "error", err)
@@ -71,7 +71,7 @@ func (apiCfg *ApiConfig) storeMapConfig(ctx context.Context, rawJSON []byte) (st
 		slog.Warn("Failed to unmarshal user map config", "error", err)
 		return "", models.ErrInvalidConfig
 	}
-	
+
 	mapID, err := uuid.NewV7()
 	if err != nil {
 		slog.Error("Failed to generate ID", "error", err)
@@ -101,7 +101,7 @@ func (apiCfg *ApiConfig) storeMapConfig(ctx context.Context, rawJSON []byte) (st
 		CreatorID:        userID,
 		ConfigObjectName: objectName,
 		CreatedAt:        time.Now().UTC(),
-		Status:           string(models.StatusPending),
+		Status:           models.StatusPending,
 	}
 
 	_, err = apiCfg.firestoreClient.Collection("maps").Doc(mapID.String()).Set(ctx, mapData)
@@ -146,7 +146,7 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mapData.Status != string(models.StatusCompleted) {
+	if mapData.Status != models.StatusCompleted {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.MapResponse{
@@ -173,7 +173,7 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	response := models.MapResponse{
 		ID:     mapID,
-		Status: string(models.StatusCompleted),
+		Status: models.StatusCompleted,
 		URL:    signedURL,
 	}
 	json.NewEncoder(w).Encode(response)

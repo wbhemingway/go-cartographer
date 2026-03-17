@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/fogleman/gg"
-	"github.com/wbhemingway/go-cartographer/internal/renderer"
 	"github.com/wbhemingway/go-cartographer/internal/models"
+	"github.com/wbhemingway/go-cartographer/internal/renderer"
 )
 
 func main() {

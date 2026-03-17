@@ -12,6 +12,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/wbhemingway/go-cartographer/internal/models"
+	"google.golang.org/api/iterator"
 )
 
 func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
@@ -114,35 +115,9 @@ func (apiCfg *ApiConfig) storeMapConfig(ctx context.Context, rawJSON []byte) (st
 }
 
 func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
-	mapID := r.PathValue("mapID")
-	mapData, err := getMapMetadata(r.Context(), apiCfg.firestoreClient, mapID)
+	mapData, mapID, err := apiCfg.getAuthorizedMap(w, r)
 	if err != nil {
-		if errors.Is(err, models.ErrMapNotFound) {
-			http.Error(w, "Map not found", http.StatusNotFound)
-			return
-		}
-
-		if errors.Is(err, models.ErrInvalidConfig) {
-			slog.Error("Corrupted map config in database", "mapID", mapID)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		slog.Error("Failed to retrieve map", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	userID, _ := r.Context().Value(userIDKey).(string)
-
-	ok := userOwnsMapCheck(userID, mapData.CreatorID)
-	if !ok {
-		slog.Warn("Unauthorized access attempt",
-			"requester", userID,
-			"owner", mapData.CreatorID,
-			"mapID", mapID,
-		)
-		http.Error(w, "Access Denied", http.StatusForbidden)
+		// getAuthorized map will have sent errors through writer
 		return
 	}
 
@@ -177,4 +152,63 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 		URL:    signedURL,
 	}
 	json.NewEncoder(w).Encode(response)
+}
+
+func (apiCfg *ApiConfig) handleDelMap(w http.ResponseWriter, r *http.Request) {
+	_, mapID, err := apiCfg.getAuthorizedMap(w, r)
+	if err != nil {
+		// getAuthorized map will have sent errors through writer
+		return
+	}
+
+	_, err = apiCfg.firestoreClient.Collection("maps").Doc(mapID).Delete(r.Context())
+	if err != nil {
+		slog.Error("Failed to delete map from database", "error", err)
+		http.Error(w, "Failed to delete map from database", http.StatusInternalServerError)
+		return
+	}
+
+	err = apiCfg.storageClient.Bucket(apiCfg.bucketName).Object("images/" + mapID + ".png").Delete(r.Context())
+	if err != nil {
+		slog.Error("Failed to delete map image from storage", "error", err)
+	}
+
+	err = apiCfg.storageClient.Bucket(apiCfg.bucketName).Object("configs/" + mapID + ".json").Delete(r.Context())
+	if err != nil {
+		slog.Error("Failed to delete map config from storage", "error", err)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (apiCfg *ApiConfig) handleListMaps(w http.ResponseWriter, r *http.Request) {
+	userID, _ := r.Context().Value(userIDKey).(string)
+	iter := apiCfg.firestoreClient.Collection("maps").Where("creator_id", "==", userID).Documents(r.Context())
+	defer iter.Stop()
+
+	responses := make([]models.MapResponse, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			slog.Error("Failed to look through documents", "error", err)
+			http.Error(w, "Failed to look through documents", http.StatusInternalServerError)
+			return
+		}
+		var mapData models.MapMetadata
+		err = doc.DataTo(&mapData)
+		if err != nil {
+			slog.Error("Failed to unmarshal document", "id", doc.Ref.ID, "error", err)
+			continue
+		}
+		responses = append(responses, models.MapResponse{
+			ID:     mapData.ID,
+			Status: mapData.Status,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(responses)
 }

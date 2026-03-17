@@ -54,8 +54,16 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /render", apiCfg.authMiddleware(apiCfg.handleRender))
-	mux.HandleFunc("GET /render/{mapID}", apiCfg.authMiddleware(apiCfg.handleGetMap))
+	
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	mux.HandleFunc("POST /maps", apiCfg.authMiddleware(apiCfg.handleRender))
+	mux.HandleFunc("GET /maps/{mapID}", apiCfg.authMiddleware(apiCfg.handleGetMap))
+	mux.HandleFunc("DELETE /maps/{mapID}", apiCfg.authMiddleware(apiCfg.handleDelMap))
+	mux.HandleFunc("GET /maps", apiCfg.authMiddleware(apiCfg.handleListMaps))
 
 	port := os.Getenv("PORT")
 	if port == "" {

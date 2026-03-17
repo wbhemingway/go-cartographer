@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 
 	"cloud.google.com/go/firestore"
 	"github.com/wbhemingway/go-cartographer/internal/models"
@@ -33,4 +35,40 @@ func getMapMetadata(ctx context.Context, fc *firestore.Client, mapID string) (mo
 
 func userOwnsMapCheck(userID, ownerID string) bool {
 	return userID == ownerID
+}
+
+func (apiCfg *ApiConfig) getAuthorizedMap(w http.ResponseWriter, r *http.Request) (models.MapMetadata, string, error) {
+	mapID := r.PathValue("mapID")
+	mapData, err := getMapMetadata(r.Context(), apiCfg.firestoreClient, mapID)
+	if err != nil {
+		if errors.Is(err, models.ErrMapNotFound) {
+			http.Error(w, "Map not found", http.StatusNotFound)
+			return models.MapMetadata{}, "", err
+		}
+
+		if errors.Is(err, models.ErrInvalidConfig) {
+			slog.Error("Corrupted map config in database", "mapID", mapID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return models.MapMetadata{}, "", err
+		}
+
+		slog.Error("Failed to retrieve map", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return models.MapMetadata{}, "", err
+	}
+
+	userID, _ := r.Context().Value(userIDKey).(string)
+
+	ok := userOwnsMapCheck(userID, mapData.CreatorID)
+	if !ok {
+		slog.Warn("Unauthorized access attempt",
+			"requester", userID,
+			"owner", mapData.CreatorID,
+			"mapID", mapID,
+		)
+		http.Error(w, "Access Denied", http.StatusForbidden)
+		return models.MapMetadata{}, "", models.ErrUnauthorized
+	}
+
+	return mapData, mapID, nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/storage"
 	"github.com/wbhemingway/go-cartographer/internal/renderer"
 )
@@ -44,17 +45,27 @@ func main() {
 	}
 	defer firestoreClient.Close()
 
+	pubsubClient, err := pubsub.NewClient(ctx, projectID)
+	if err != nil {
+		slog.Error("Failed to create pubsub client", "error", err)
+		os.Exit(1)
+	}
+	defer pubsubClient.Close()
+
+	pubsubPublisher := pubsubClient.Publisher("map-render-jobs")
+
 	cfg := renderer.DefaultConfig()
 	engine := renderer.New(cfg)
 	apiCfg := &ApiConfig{
 		engine:          engine,
 		storageClient:   storageClient,
 		firestoreClient: firestoreClient,
+		pubsubPublisher: pubsubPublisher,
 		bucketName:      bucketName,
 	}
 
 	mux := http.NewServeMux()
-	
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))

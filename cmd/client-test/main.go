@@ -51,7 +51,7 @@ func main() {
 		log.Fatalf("Failed to read response body: %v", err)
 	}
 
-	var res models.RenderResponse
+	var res models.MapResponse
 	err = json.Unmarshal(data, &res)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)

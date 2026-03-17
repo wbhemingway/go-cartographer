@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,7 +14,6 @@ import (
 	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
-// needs to handle errors more granually TODO
 func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -25,20 +24,33 @@ func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 
 	mapID, err := apiCfg.storeMapConfig(r.Context(), bytes)
 	if err != nil {
-		http.Error(w, "Internal server error during ingestion", http.StatusInternalServerError)
+		if errors.Is(err, models.ErrUnauthorized) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if errors.Is(err, models.ErrInvalidConfig) {
+			http.Error(w, "Invalid map configuration", http.StatusBadRequest)
+			return
+		}
+
+		slog.Error("Database error during ingestion", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	err = apiCfg.renderWorld(r.Context(), mapID)
-	if err != nil {
-		http.Error(w, "Internal server error during rendering", http.StatusInternalServerError)
-		return
-	}
+	go func(id string) {
+		err := apiCfg.renderWorld(context.Background(), id)
+		if err != nil {
+			// TODO update document to failed rather than pending
+			slog.Error("Background rendering failed", "mapID", id, "error", err)
+		}
+	}(mapID)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusAccepted)
 	err = json.NewEncoder(w).Encode(models.MapResponse{
-		ID: mapID,
+		ID:     mapID,
+		Status: string(models.StatusPending),
 	})
 	if err != nil {
 		slog.Error("Failed to write JSON response", "error", err)
@@ -46,11 +58,20 @@ func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 }
 
 func (apiCfg *ApiConfig) storeMapConfig(ctx context.Context, rawJSON []byte) (string, error) {
-	userID, ok := ctx.Value("UserID").(string)
+	userID, ok := ctx.Value(userIDKey).(string)
 	if !ok {
 		slog.Error("Coud not find user id in context")
-		return "", fmt.Errorf("failed to get user from context")
+		return "", models.ErrUnauthorized
 	}
+
+	var validationWorld models.World
+
+	err := json.Unmarshal(rawJSON, &validationWorld)
+	if err != nil {
+		slog.Warn("Failed to unmarshal user map config", "error", err)
+		return "", models.ErrInvalidConfig
+	}
+	
 	mapID, err := uuid.NewV7()
 	if err != nil {
 		slog.Error("Failed to generate ID", "error", err)
@@ -80,7 +101,7 @@ func (apiCfg *ApiConfig) storeMapConfig(ctx context.Context, rawJSON []byte) (st
 		CreatorID:        userID,
 		ConfigObjectName: objectName,
 		CreatedAt:        time.Now().UTC(),
-		Status:           "pending",
+		Status:           string(models.StatusPending),
 	}
 
 	_, err = apiCfg.firestoreClient.Collection("maps").Doc(mapID.String()).Set(ctx, mapData)
@@ -96,13 +117,26 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 	mapID := r.PathValue("mapID")
 	mapData, err := getMapMetadata(r.Context(), apiCfg.firestoreClient, mapID)
 	if err != nil {
-		//handle later
+		if errors.Is(err, models.ErrMapNotFound) {
+			http.Error(w, "Map not found", http.StatusNotFound)
+			return
+		}
+
+		if errors.Is(err, models.ErrInvalidConfig) {
+			slog.Error("Corrupted map config in database", "mapID", mapID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		slog.Error("Failed to retrieve map", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	userID, _ := r.Context().Value("UserID").(string)
+	userID, _ := r.Context().Value(userIDKey).(string)
 
-	if mapData.CreatorID != userID {
+	ok := userOwnsMapCheck(userID, mapData.CreatorID)
+	if !ok {
 		slog.Warn("Unauthorized access attempt",
 			"requester", userID,
 			"owner", mapData.CreatorID,
@@ -112,7 +146,7 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mapData.Status != "completed" {
+	if mapData.Status != string(models.StatusCompleted) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.MapResponse{
@@ -134,11 +168,12 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=900")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response := models.MapResponse{
 		ID:     mapID,
-		Status: "completed",
+		Status: string(models.StatusCompleted),
 		URL:    signedURL,
 	}
 	json.NewEncoder(w).Encode(response)

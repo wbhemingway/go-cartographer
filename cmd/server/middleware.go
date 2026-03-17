@@ -9,6 +9,13 @@ import (
 	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 
+type contextKey string
+
+const (
+	userIDKey   contextKey = "UserID"
+	userRoleKey contextKey = "UserRole"
+)
+
 func (apiCfg *ApiConfig) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -33,8 +40,8 @@ func (apiCfg *ApiConfig) authMiddleware(next http.HandlerFunc) http.HandlerFunc 
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "UserID", apiKey.UserID)
-		ctx = context.WithValue(ctx, "UserRole", apiKey.UserRole)
+		ctx := context.WithValue(r.Context(), userIDKey, apiKey.UserID)
+		ctx = context.WithValue(ctx, userRoleKey, apiKey.UserRole)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}

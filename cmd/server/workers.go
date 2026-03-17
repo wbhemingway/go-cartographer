@@ -73,7 +73,7 @@ func (apiCfg *ApiConfig) renderWorld(ctx context.Context, mapID string) error {
 	}
 
 	_, err = apiCfg.firestoreClient.Collection("maps").Doc(mapID).Update(ctx, []firestore.Update{
-		{Path: "status", Value: "completed"},
+		{Path: "status", Value: models.StatusCompleted},
 	})
 	if err != nil {
 		slog.Error("Failed to update the database entry to completed", "error", err)

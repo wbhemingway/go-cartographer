@@ -1,7 +1,21 @@
 package models
 
 import (
+	"errors"
 	"time"
+)
+
+type MapStatus string
+
+const (
+	StatusPending   MapStatus = "pending"
+	StatusCompleted MapStatus = "completed"
+)
+
+var (
+	ErrMapNotFound   = errors.New("map not found")
+	ErrUnauthorized  = errors.New("user does not own this map")
+	ErrInvalidConfig = errors.New("map configuration is invalid")
 )
 
 type Tile struct {
@@ -29,7 +43,7 @@ type MapMetadata struct {
 	CreatorID        string    `firestore:"creator_id" json:"creator_id"`
 	ConfigObjectName string    `firestore:"config_object_name" json:"config_object_name"`
 	CreatedAt        time.Time `firestore:"created_at" json:"created_at"`
-	Status           string    `firestore:"pending" json:"pending"`
+	Status           string    `firestore:"status" json:"status"`
 }
 
 type APIKey struct {

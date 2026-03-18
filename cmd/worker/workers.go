@@ -3,18 +3,26 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"image/png"
 	"io"
 	"log/slog"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/storage"
 	"github.com/wbhemingway/go-cartographer/internal/models"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func (apiCfg *ApiConfig) renderWorld(ctx context.Context, mapID string) error {
-	docSnap, err := apiCfg.firestoreClient.Collection("maps").Doc(mapID).Get(ctx)
+func (workerCfg *WorkerConfig) renderWorld(ctx context.Context, mapID string) error {
+	docSnap, err := workerCfg.firestoreClient.Collection("maps").Doc(mapID).Get(ctx)
 	if err != nil {
-		slog.Error("Could not get map config from mapID", "error", err)
+		if status.Code(err) == codes.NotFound {
+			slog.Error("Map document does not exist", "mapID", mapID)
+			return models.ErrMapNotFound
+		}
+		slog.Error("Network error getting map config", "error", err)
 		return err
 	}
 
@@ -22,13 +30,17 @@ func (apiCfg *ApiConfig) renderWorld(ctx context.Context, mapID string) error {
 	err = docSnap.DataTo(&mapdata)
 	if err != nil {
 		slog.Error("Could not convert firestore entry to MapMetadata", "error", err)
-		return err
+		return models.ErrInvalidConfig
 	}
 
-	confObj := apiCfg.storageClient.Bucket(apiCfg.bucketName).Object(mapdata.ConfigObjectName)
+	confObj := workerCfg.storageClient.Bucket(workerCfg.bucketName).Object(mapdata.ConfigObjectName)
 	reader, err := confObj.NewReader(ctx)
 	if err != nil {
-		slog.Error("Could not make reader for confObj.NewReader(ctx)", "error", err)
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			slog.Error("Config file missing from storage", "object", mapdata.ConfigObjectName)
+			return models.ErrInvalidConfig
+		}
+		slog.Error("Network error reading config from storage", "error", err)
 		return err
 	}
 	defer reader.Close()
@@ -43,17 +55,17 @@ func (apiCfg *ApiConfig) renderWorld(ctx context.Context, mapID string) error {
 	err = json.Unmarshal(body, &world)
 	if err != nil {
 		slog.Error("Could not unmarshal body into world struct", "error", err)
-		return err
+		return models.ErrInvalidConfig
 	}
 
-	img, err := apiCfg.engine.Render(ctx, world)
+	img, err := workerCfg.engine.Render(ctx, world)
 	if err != nil {
 		slog.Error("Render error", "error", err)
-		return err
+		return models.ErrInvalidConfig
 	}
 
 	objectName := "images/" + mapID + ".png"
-	bucket := apiCfg.storageClient.Bucket(apiCfg.bucketName)
+	bucket := workerCfg.storageClient.Bucket(workerCfg.bucketName)
 	obj := bucket.Object(objectName)
 
 	writer := obj.NewWriter(ctx)
@@ -72,7 +84,7 @@ func (apiCfg *ApiConfig) renderWorld(ctx context.Context, mapID string) error {
 		return err
 	}
 
-	_, err = apiCfg.firestoreClient.Collection("maps").Doc(mapID).Update(ctx, []firestore.Update{
+	_, err = workerCfg.firestoreClient.Collection("maps").Doc(mapID).Update(ctx, []firestore.Update{
 		{Path: "status", Value: models.StatusCompleted},
 	})
 	if err != nil {

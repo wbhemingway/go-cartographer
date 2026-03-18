@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/wbhemingway/go-cartographer/internal/models"
@@ -39,13 +40,14 @@ func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func(id string) {
-		err := apiCfg.renderWorld(context.Background(), id)
-		if err != nil {
-			// TODO update document to failed rather than pending
-			slog.Error("Background rendering failed", "mapID", id, "error", err)
-		}
-	}(mapID)
+	msg := &pubsub.Message{Data: []byte(mapID)}
+	result := apiCfg.pubsubPublisher.Publish(r.Context(), msg)
+	_, err = result.Get(r.Context())
+	if err != nil {
+		slog.Error("Failed to publish render job to queue", "mapID", mapID, "error", err)
+		http.Error(w, "failed to queue map forrendering", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)

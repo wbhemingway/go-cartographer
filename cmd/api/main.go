@@ -13,7 +13,6 @@ import (
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/storage"
-	"github.com/wbhemingway/go-cartographer/internal/renderer"
 )
 
 func main() {
@@ -54,10 +53,7 @@ func main() {
 
 	pubsubPublisher := pubsubClient.Publisher("map-render-jobs")
 
-	cfg := renderer.DefaultConfig()
-	engine := renderer.New(cfg)
 	apiCfg := &ApiConfig{
-		engine:          engine,
 		storageClient:   storageClient,
 		firestoreClient: firestoreClient,
 		pubsubPublisher: pubsubPublisher,

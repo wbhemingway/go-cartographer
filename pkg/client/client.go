@@ -34,7 +34,7 @@ func (c *Client) RequestMap(ctx context.Context, world models.World) (io.ReadClo
 		return nil, fmt.Errorf("failed to marshal world data: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/render", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/maps", bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -48,7 +48,7 @@ func (c *Client) RequestMap(ctx context.Context, world models.World) (io.ReadClo
 		return nil, fmt.Errorf("network error: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		resp.Body.Close()
 		return nil, fmt.Errorf("server returned error code: %d", resp.StatusCode)
 	}

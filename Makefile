@@ -20,7 +20,7 @@ deploy-api: push-api
 	gcloud run deploy cartographer-api \
 		--image $(API_IMAGE_PATH) \
 		--region $(CARTOGRAPHER_REGION) \
-		--set-env-vars="CARTOGRAPHER_BUCKET_NAME=$(CARTOGRAPHER_BUCKET_NAME)" \
+		--set-env-vars="CARTOGRAPHER_BUCKET_NAME=$(CARTOGRAPHER_BUCKET_NAME),GOOGLE_CLOUD_PROJECT=$(CARTOGRAPHER_PROJECT_ID)" \
 		--allow-unauthenticated \
 		--max-instances=2
 
@@ -38,10 +38,8 @@ deploy-worker: push-worker
 	gcloud run deploy cartographer-worker \
 		--image $(WORKER_IMAGE_PATH) \
 		--region $(CARTOGRAPHER_REGION) \
-		--set-env-vars="CARTOGRAPHER_BUCKET_NAME=$(CARTOGRAPHER_BUCKET_NAME)" \
+		--set-env-vars="CARTOGRAPHER_BUCKET_NAME=$(CARTOGRAPHER_BUCKET_NAME),GOOGLE_CLOUD_PROJECT=$(CARTOGRAPHER_PROJECT_ID)" \
 		--no-allow-unauthenticated \
-		--min-instances=1 \
-		--no-cpu-throttling \
 		--max-instances=2
 
 # ==========================================

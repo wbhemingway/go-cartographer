@@ -23,7 +23,6 @@ var (
 	ErrMapNotFound   = errors.New("map not found")
 	ErrUnauthorized  = errors.New("user does not own this map")
 	ErrInvalidConfig = errors.New("map configuration is invalid")
-	ErrOutOfBounds = errors.New("coordinate falls outside map dimensions")
 )
 
 type Tile struct {

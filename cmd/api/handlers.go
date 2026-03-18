@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
+	credentials "cloud.google.com/go/iam/credentials/apiv1"
+	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -134,14 +138,44 @@ func (apiCfg *ApiConfig) handleGetMap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	objectName := "images/" + mapID + ".png"
-	signedURL, err := storage.SignedURL(apiCfg.bucketName, objectName, &storage.SignedURLOptions{
-		Scheme:  storage.SigningSchemeV4,
-		Method:  "GET",
-		Expires: time.Now().Add(15 * time.Minute),
-	})
+
+	saEmail, err := metadata.EmailWithContext(r.Context(), "")
+	if err != nil {
+		slog.Error("Failed to get service account email from metadata", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	iamClient, err := credentials.NewIamCredentialsClient(r.Context())
+	if err != nil {
+		slog.Error("Failed to create IAM client", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer iamClient.Close()
+
+	opts := &storage.SignedURLOptions{
+		Scheme:         storage.SigningSchemeV4,
+		Method:         "GET",
+		GoogleAccessID: saEmail,
+		Expires:        time.Now().Add(15 * time.Minute),
+		SignBytes: func(b []byte) ([]byte, error) {
+			req := &credentialspb.SignBlobRequest{
+				Payload: b,
+				Name:    fmt.Sprintf("projects/-/serviceAccounts/%s", saEmail),
+			}
+			resp, signErr := iamClient.SignBlob(r.Context(), req)
+			if signErr != nil {
+				return nil, signErr
+			}
+			return resp.SignedBlob, nil
+		},
+	}
+
+	signedURL, err := storage.SignedURL(apiCfg.bucketName, objectName, opts)
 	if err != nil {
 		slog.Error("Failed to generate signed URL", "error", err)
-		http.Error(w, "Failed to generate image link", http.StatusInternalServerError)
+		http.Error(w, "Failed to generate download link", http.StatusInternalServerError)
 		return
 	}
 

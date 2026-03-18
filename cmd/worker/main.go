@@ -2,18 +2,27 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"cloud.google.com/go/firestore"
-	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/storage"
 	"github.com/wbhemingway/go-cartographer/internal/models"
 	"github.com/wbhemingway/go-cartographer/internal/renderer"
 )
+
+type pushRequest struct {
+	Message struct {
+		Data []byte `json:"data"`
+		ID   string `json:"messageId"`
+	} `json:"message"`
+	Subscription string `json:"subscription"`
+}
 
 func main() {
 	handler := slog.NewJSONHandler(os.Stdout, nil)
@@ -44,53 +53,65 @@ func main() {
 	}
 	defer firestoreClient.Close()
 
-	pubsubClient, err := pubsub.NewClient(ctx, projectID)
-	if err != nil {
-		slog.Error("Failed to create pubsub client", "error", err)
-		os.Exit(1)
-	}
-	defer pubsubClient.Close()
-
-	pubsubSubscriber := pubsubClient.Subscriber("map-render-jobs-sub")
-
 	cfg := renderer.DefaultConfig()
 	engine := renderer.New(cfg)
 	workerCfg := &WorkerConfig{
-		engine:           engine,
-		storageClient:    storageClient,
-		firestoreClient:  firestoreClient,
-		pubsubSubscriber: pubsubSubscriber,
-		bucketName:       bucketName,
+		engine:          engine,
+		storageClient:   storageClient,
+		firestoreClient: firestoreClient,
+		bucketName:      bucketName,
 	}
 
-	slog.Info("Worker started, listening for map render jobs...")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/pubsub/push", workerCfg.handlePush)
 
-	err = workerCfg.pubsubSubscriber.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
-		mapID := string(msg.Data)
-		slog.Info("Received render job", "mapID", mapID)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
-		err := workerCfg.renderWorld(ctx, mapID)
-		if err != nil {
-			slog.Error("Could not render the json", "mapID", mapID, "error", err)
+	slog.Info("Worker started, listening for Push messages", "port", port)
 
-			if errors.Is(err, models.ErrInvalidConfig) || errors.Is(err, models.ErrMapNotFound) {
-				_, updateErr := workerCfg.firestoreClient.Collection("maps").Doc(mapID).Update(ctx, []firestore.Update{
-					{Path: "status", Value: "failed"},
-				})
-				if updateErr != nil {
-					slog.Error("Failed to set map status to failed", "mapID", mapID, "error", updateErr)
-				}
-				msg.Ack()
-				return
-			}
-			msg.Nack()
-			return
-		}
-		msg.Ack()
-	})
-	if err != nil {
-		slog.Error("Worker subscriber loop failed", "error", err)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		slog.Error("Worker server crashed", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("Worker shut down cleanly")
+}
+
+func (cfg *WorkerConfig) handlePush(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req pushRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode push request", "error", err)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	mapID := string(req.Message.Data)
+	slog.Info("Received push render job", "mapID", mapID, "msgID", req.Message.ID)
+
+	err := cfg.renderWorld(r.Context(), mapID)
+	if err != nil {
+		slog.Error("Render job failed", "mapID", mapID, "error", err)
+		if errors.Is(err, models.ErrInvalidConfig) || errors.Is(err, models.ErrMapNotFound) {
+			_, updateErr := cfg.firestoreClient.Collection("maps").Doc(mapID).Update(r.Context(), []firestore.Update{
+				{Path: "status", Value: "failed"},
+			})
+			if updateErr != nil {
+				slog.Error("Failed to set map status to failed", "mapID", mapID, "error", updateErr)
+			}
+
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		http.Error(w, "Transient error, please retry", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

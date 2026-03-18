@@ -88,4 +88,9 @@ func main() {
 		}
 		msg.Ack()
 	})
+	if err != nil {
+		slog.Error("Worker subscriber loop failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Worker shut down cleanly")
 }

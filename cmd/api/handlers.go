@@ -45,7 +45,7 @@ func (apiCfg *ApiConfig) handleRender(w http.ResponseWriter, r *http.Request) {
 	_, err = result.Get(r.Context())
 	if err != nil {
 		slog.Error("Failed to publish render job to queue", "mapID", mapID, "error", err)
-		http.Error(w, "failed to queue map forrendering", http.StatusInternalServerError)
+		http.Error(w, "failed to queue map for rendering", http.StatusInternalServerError)
 		return
 	}
 

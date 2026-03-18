@@ -63,6 +63,9 @@ func (e *Engine) Render(ctx context.Context, w models.World) (image.Image, error
 	}
 
 	for _, t := range w.Tiles {
+		if t.X < 0 || t.X >= w.Width || t.Y < 0 || t.Y >= w.Height {
+			continue
+		}
 		jobs <- t
 	}
 	close(jobs)

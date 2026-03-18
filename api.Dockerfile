@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /server ./cmd/server
+RUN go build -o /api-server ./cmd/api
 
 # Deploy Stage
 
@@ -18,10 +18,8 @@ FROM alpine:3.21
 
 WORKDIR /
 
-COPY --from=builder /server /server
-
-COPY --from=builder /app/assets /assets
+COPY --from=builder /api-server /api-server
 
 EXPOSE 8080
 
-ENTRYPOINT ["/server"]
+ENTRYPOINT ["/api-server"]

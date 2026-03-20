@@ -1,4 +1,4 @@
-package client
+package cartographer
 
 import (
 	"bytes"
@@ -7,51 +7,70 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/wbhemingway/go-cartographer/internal/models"
+	"time"
 )
 
 type Client struct {
-	BaseURL    string
-	APIKey     string
-	HTTPClient *http.Client
+	baseURL    string
+	apiKey     string
+	httpClient *http.Client
 }
 
-func New(url string, apiKey string, client *http.Client) *Client {
-	if client == nil {
-		client = http.DefaultClient
+func NewClient(baseURL string, opts ...Option) *Client {
+	c := &Client{
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: time.Second * 30,
+		},
 	}
-	return &Client{
-		BaseURL:    url,
-		APIKey:     apiKey,
-		HTTPClient: client,
+
+	for _, opt := range opts {
+		opt(c)
 	}
+
+	return c
 }
 
-func (c *Client) RequestMap(ctx context.Context, world models.World) (io.ReadCloser, error) {
-	payload, err := json.Marshal(world)
+func (c *Client) sendRequest(ctx context.Context, method, endpoint string, body interface{}, v interface{}) error {
+	url := fmt.Sprintf("%s%s", c.baseURL, endpoint)
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewBuffer(jsonBody)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal world data: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/maps", bytes.NewReader(payload))
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("http request failed: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.APIKey != "" && c.HTTPClient == http.DefaultClient {
-		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return parseAPIError(resp)
 	}
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("network error: %w", err)
+	if v != nil {
+		if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
 	}
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		resp.Body.Close()
-		return nil, fmt.Errorf("server returned error code: %d", resp.StatusCode)
-	}
-
-	return resp.Body, nil
+	return nil
 }

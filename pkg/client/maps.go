@@ -8,7 +8,7 @@ import (
 func (c *Client) Render(ctx context.Context, req WorldRequest) (*MapResponse, error) {
 	var response MapResponse
 
-	err := c.sendRequest(ctx, http.MethodPost, "/api/v1/maps", req, &response)
+	err := c.sendRequest(ctx, http.MethodPost, "/maps", req, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (c *Client) DeleteMap(ctx context.Context, mapID string) error {
 func (c *Client) ListMaps(ctx context.Context) ([]MapResponse, error) {
 	var responses []MapResponse
 
-	err := c.sendRequest(ctx, http.MethodGet, "/maps/", nil, &responses)
+	err := c.sendRequest(ctx, http.MethodGet, "/maps", nil, &responses)
 	if err != nil {
 		return nil, err
 	}

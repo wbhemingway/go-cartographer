@@ -2,129 +2,82 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/wbhemingway/go-cartographer/internal/models"
-	"github.com/wbhemingway/go-cartographer/pkg/client"
+	cartographer "github.com/wbhemingway/go-cartographer/pkg/client"
 )
 
 func main() {
-
 	_ = godotenv.Load()
 	apiURL := os.Getenv("CARTOGRAPHER_API_URL")
 	apiKey := os.Getenv("CARTOGRAPHER_API_KEY")
+
 	if apiURL == "" {
 		log.Fatal("Fatal: CARTOGRAPHER_API_URL environment variable is not set")
 	}
-	apiClient := client.New(apiURL, apiKey, http.DefaultClient)
+	c := cartographer.NewClient(
+		apiURL,
+		cartographer.WithTimeout(10*time.Second),
+		cartographer.WithAPIKey(apiKey),
+	)
 
-	world := models.World{
+	ctx := context.Background()
+
+	req := cartographer.WorldRequest{
 		Width:  2,
 		Height: 2,
-		Tiles: []models.Tile{
-			{X: 0, Y: 0, Terrain: "grass", Structure: "hut"},
-			{X: 1, Y: 0, Terrain: "water"},
-			{X: 0, Y: 1, Terrain: "sandy", Creature: "goblin", Structure: "tree"},
-			{X: 1, Y: 1, Terrain: "grass_flowers"},
+		Tiles: []cartographer.Tile{
+			{X: 0, Y: 0, Terrain: "grass"},
+			{X: 1, Y: 1, Terrain: "water"},
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	log.Println("Sending POST request to queue the map render...")
-
-	respBody, err := apiClient.RequestMap(ctx, world)
+	fmt.Println("Submitting render job...")
+	resp, err := c.Render(ctx, req)
 	if err != nil {
-		log.Fatalf("Failed to queue map: %v", err)
+		log.Fatalf("Render failed: %v", err)
 	}
-	defer respBody.Close()
-
-	data, err := io.ReadAll(respBody)
-	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
-	}
-
-	var postRes models.MapResponse
-	err = json.Unmarshal(data, &postRes)
-	if err != nil {
-		log.Fatalf("Failed to read POST response body: %v", err)
-	}
-
-	log.Printf("Success! Map queued with ID: %s. Status: %s", postRes.ID, postRes.Status)
-
-	var finalURL string
-	pollInterval := 2 * time.Second
+	fmt.Printf("Job submitted! ID: %s, Status: %s\n", resp.ID, resp.Status)
 
 	for {
-		select {
-		case <-ctx.Done():
-			log.Fatal("Timed out waiting for map to render")
-		default:
-		}
-
-		log.Printf("Polling GET /maps/%s ...", postRes.ID)
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/maps/%s", apiURL, postRes.ID), nil)
+		time.Sleep(2 * time.Second)
+		statusResp, err := c.GetMap(ctx, resp.ID)
 		if err != nil {
-			log.Fatalf("Failed to create GET request: %v", err)
-		}
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-
-		getResp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.Fatalf("Failed to call GET endpoint: %v", err)
+			log.Fatalf("Failed to fetch map status: %v", err)
 		}
 
-		if getResp.StatusCode != http.StatusOK {
-			log.Fatalf("GET endpoint returned unexpected status: %d", getResp.StatusCode)
-		}
-
-		getBody, _ := io.ReadAll(getResp.Body)
-		getResp.Body.Close()
-
-		var getRes models.MapResponse
-		err = json.Unmarshal(getBody, &getRes)
-		if err != nil {
-			log.Fatalf("Failed to parse GET JSON: %v", err)
-		}
-
-		if getRes.Status == models.StatusCompleted {
-			log.Println("Render complete!")
-			finalURL = getRes.URL
+		fmt.Printf("Polling status: %s\n", statusResp.Status)
+		if statusResp.Status == "completed" {
+			fmt.Printf("Render successful! Image URL: %s\n", statusResp.URL)
 			break
-		} else if getRes.Status == "failed" {
-			log.Fatal("Worker failed to render the map (Poison Pill). Check worker logs.")
 		}
-
-		log.Printf("Status is still '%s'. Waiting %v...", getRes.Status, pollInterval)
-		time.Sleep(pollInterval)
 	}
 
-	log.Println("Downloading image from Signed URL...")
-	imgResp, err := http.Get(finalURL)
-	if err != nil || imgResp.StatusCode != http.StatusOK {
-		log.Fatalf("Failed to download image from signed URL: %v", err)
-	}
-	defer imgResp.Body.Close()
-
-	outFile, err := os.Create("test-render.png")
+	mapList, err := c.ListMaps(ctx)
 	if err != nil {
-		log.Fatalf("Failed to create local file: %v", err)
+		log.Fatalf("Could not get the list of maps: %v", err)
 	}
-	defer outFile.Close()
 
-	_, err = io.Copy(outFile, imgResp.Body)
+	for _, item := range mapList {
+		if item.ID == resp.ID {
+			fmt.Printf("The map with ID %v is in the list!\n", item.ID)
+			break
+		}
+	}
+
+	err = c.DeleteMap(ctx, resp.ID)
 	if err != nil {
-		log.Fatalf("Failed to save image: %v", err)
+		log.Fatalf("There was an issue deleting map with id %v: %v\n", resp.ID, err)
 	}
 
-	log.Println("Verified! Image saved to test-render.png")
+	_, err = c.GetMap(ctx, resp.ID)
+	if err == nil {
+		log.Fatalf("There was an issue deleting map with id %v: %v\n", resp.ID, err)
+	}
+
+	fmt.Println("Map successfully deleted")
 }

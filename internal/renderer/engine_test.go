@@ -3,7 +3,7 @@ package renderer
 import (
 	"context"
 	"testing"
-	
+
 	"github.com/wbhemingway/go-cartographer/internal/models"
 )
 

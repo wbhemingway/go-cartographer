@@ -2,6 +2,10 @@
 
 A concurrent microservice and rendering engine for generating 2D grid-based maps. Designed to support tabletop role-playing games and community-driven bots, the engine processes tile arrays, safely renders images using a dedicated worker pool, and syncs the output to Google Cloud.
 
+## Motivation
+
+This project was primarily created for my own use to connect a Discord bot to the service using the client package for players in a game, to be able to in real time be able to make changes to a world map. The code here is usable to run this through your own Google Cloud Services account, or if you simply want to use the client send me a message and I will provide an API key.
+
 ## Features
 
 * **Concurrent Rendering Engine:** An internal worker pool processes heavy image rendering jobs asynchronously, preventing the main API threads from blocking or running out of memory under load.
@@ -22,7 +26,7 @@ A concurrent microservice and rendering engine for generating 2D grid-based maps
 * Docker & Docker Compose
 * A Google Cloud Service Account with permissions for Cloud Storage and Firestore (Datastore)
 
-## Getting Started
+## Quick Start
 
 1. **Clone the repository:**
   ```bash
@@ -31,7 +35,7 @@ A concurrent microservice and rendering engine for generating 2D grid-based maps
   ```
 
 2. **Configure the environment**
-  Copy the example environment, and set up your google cloud environment to get the necessary variables. The api key is something you'll have to make and put into firestore yourself, as well as a user attatched to it.
+  Copy the example environment and set up your Google Cloud environment to get the necessary variables. The api key is something you'll have to make and put into firestore yourself, as well as a user attached to it.
   ```bash
   cp .env.example .env
   ```
@@ -42,7 +46,7 @@ A concurrent microservice and rendering engine for generating 2D grid-based maps
   make all
   ```
 **Testing**
-To verify it is working as intended run the client-test
+To verify it is working as intended, run the client-test
  ```bash
  go run ./cmd/client-test
   ```
@@ -59,7 +63,7 @@ To verify it is working as intended run the client-test
 
 ## Client Package Usage
 
-The repository includes a decoupled client package abstracting transport logic and enforcing JSON contracts.
+The repository includes a client package abstracting transport logic and enforcing JSON contracts.
 
 ```go
 import (

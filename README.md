@@ -45,7 +45,7 @@ This project was primarily created for my own use to connect a Discord bot to th
   ```bash
   make all
   ```
-**Testing**
+### Testing
 To verify it is working as intended, run the client-test
  ```bash
  go run ./cmd/client-test
@@ -69,7 +69,7 @@ The repository includes a client package abstracting transport logic and enforci
 import (
     "context"
     "time"
-    cartographer "[github.com/wbhemingway/go-cartographer/pkg/client](https://github.com/wbhemingway/go-cartographer/pkg/client)"
+    cartographer "https://github.com/wbhemingway/go-cartographer/pkg/client"
 )
 
 func main() {
@@ -85,5 +85,8 @@ func main() {
 ```
 
 ## Contributing
+Verifying the code works locally is covered in Quick Start
 
-Contributions are welcome regarding maturing the JSON intake options and having the renderer be able to process them correctly. 
+You may contribute by:
+- Reporting bugs to the issue tracker
+- Submitting code for new functionality/bug fixes

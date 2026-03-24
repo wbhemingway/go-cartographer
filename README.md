@@ -83,3 +83,7 @@ func main() {
     resp, err := c.Render(context.Background(), myWorldRequest)
 }
 ```
+
+## Contributing
+
+Contributions are welcome regarding maturing the JSON intake options and having the renderer be able to process them correctly. 
